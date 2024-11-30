@@ -248,8 +248,9 @@ def normalize_action_and_proprio(
     keys_to_normalize = {
         "action": "action",
     }
-    if "proprio" in traj["observation"]:
-        keys_to_normalize["proprio"] = "observation/proprio"
+    # import pdb; pdb.set_trace()
+    # if "proprio" in traj["observation"]:
+    #     keys_to_normalize["proprio"] = "observation/proprio"
 
     if normalization_type == NormalizationType.NORMAL:
         # normalize to mean 0, std 1

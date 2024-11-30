@@ -154,6 +154,19 @@ def apply_trajectory_transforms(
             num_parallel_calls,
         )
 
+    def add_next_act_obs(traj: dict) -> dict:
+        traj_len = tf.shape(traj["action"])[0]
+        indices = tf.minimum(tf.range(traj_len) + 1, traj_len - 1)
+
+        traj["next_action"] = tf.gather(traj["action"], indices)
+        
+        traj["next_observation"] = tf.nest.map_structure(
+            lambda x: tf.gather(x, indices), traj["observation"]
+        )
+        return traj
+
+    dataset = dataset.traj_map(add_next_act_obs, num_parallel_calls)
+
     return dataset
 
 
@@ -199,6 +212,7 @@ def apply_frame_transforms(
         frame["task"] = fn(frame["task"])
         # observation is chunked -- apply fn along first axis
         frame["observation"] = dl.vmap(fn)(frame["observation"])
+        frame["next_observation"] = dl.vmap(fn)(frame["next_observation"])
         return frame
 
     # decode + resize images (and depth images)
@@ -366,12 +380,37 @@ def make_dataset_from_rlds(
                     f"Language key {language_key} has dtype {task['language_instruction'].dtype}, "
                     "but it must be tf.string."
                 )
+        # add reward and mask
+        num_final_repeat = 3
+        num_pos = tf.minimum(num_final_repeat, traj_len)
+        reward = tf.concat(
+            [-tf.ones(traj_len - num_pos, dtype=tf.float32), tf.zeros(num_pos, dtype=tf.float32)], axis=0
+        )
+        mask = tf.concat(
+            [tf.ones(traj_len - num_pos, dtype=tf.float32), tf.zeros(num_pos, dtype=tf.float32)], axis=0
+        )
+        mc_return = tf.scan(
+            lambda prev_return, x: x[0] + 0.98 * prev_return * x[1],
+            [reward, mask],
+            initializer=0.0,
+            reverse=True
+        )
+        
+        # # repeat last action
+        # next_action = tf.concat([traj["action"][1:, ...], traj["action"][-1:, ...]], axis=0)
+        # import pdb; pdb.set_trace()
+        # next_obs = {k: tf.concat([v[1:, ...], v[-1:, ...]], axis=0) for k, v in new_obs.items()}
 
         traj = {
             "observation": new_obs,
             "task": task,
             "action": tf.cast(traj["action"], tf.float32),
             "dataset_name": tf.repeat(name, traj_len),
+            "reward": reward,
+            "td_mask": mask,
+            "mc_return": mc_return,
+            # "next_action": tf.cast(next_action, tf.float32),
+            # "next_observation": next_obs,
         }
 
         return traj
@@ -438,6 +477,8 @@ def make_dataset_from_rlds(
         is_nonzero_length
     )
 
+
+    action_proprio_normalization_type = NormalizationType.BOUNDS
     if not skip_norm:
         dataset = dataset.traj_map(
             partial(
