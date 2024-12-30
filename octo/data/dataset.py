@@ -270,6 +270,7 @@ def make_dataset_from_rlds(
     ignore_errors: bool = False,
     num_parallel_reads: int = tf.data.AUTOTUNE,
     num_parallel_calls: int = tf.data.AUTOTUNE,
+    mc_discount: float = 0.98,
 ) -> Tuple[dl.DLataset, dict]:
     """This function is responsible for loading a specific RLDS dataset from storage and getting it into a
     standardized format. Yields a dataset of trajectories. Does not include CPU-intensive operations.
@@ -391,7 +392,7 @@ def make_dataset_from_rlds(
             [tf.ones(traj_len - num_pos, dtype=tf.float32), tf.zeros(num_pos, dtype=tf.float32)], axis=0
         )
         mc_return = tf.scan(
-            lambda prev_return, x: x[0] + 0.98 * prev_return * x[1],
+            lambda prev_return, x: x[0] + mc_discount * prev_return * x[1],
             [reward, mask],
             initializer=0.0,
             reverse=True
