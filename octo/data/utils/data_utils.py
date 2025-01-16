@@ -253,6 +253,7 @@ def normalize_action_and_proprio(
     #     keys_to_normalize["proprio"] = "observation/proprio"
 
     if normalization_type == NormalizationType.NORMAL:
+        raise NotImplementedError("Normal normalization not implemented yet.")
         # normalize to mean 0, std 1
         for key, traj_key in keys_to_normalize.items():
             mask = metadata[key].get(
@@ -270,9 +271,10 @@ def normalize_action_and_proprio(
     if normalization_type == NormalizationType.BOUNDS:
         # normalize to [-1, 1]
         for key, traj_key in keys_to_normalize.items():
-            mask = metadata[key].get(
-                "mask", tf.ones_like(metadata[key]["p01"], dtype=tf.bool)
-            )
+            # mask = metadata[key].get(
+            #     "mask", tf.ones_like(metadata[key]["p01"], dtype=tf.bool)
+            # )
+            mask = tf.ones_like(metadata[key]["p01"], dtype=tf.bool)
             traj = dl.transforms.selective_tree_map(
                 traj,
                 match=lambda k, _: k == traj_key,
