@@ -490,8 +490,6 @@ def make_dataset_from_rlds(
         is_nonzero_length
     )
 
-
-    action_proprio_normalization_type = NormalizationType.BOUNDS
     if not skip_norm:
         dataset = dataset.traj_map(
             partial(
